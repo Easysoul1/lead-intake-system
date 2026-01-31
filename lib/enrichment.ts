@@ -80,10 +80,20 @@ export async function enrichLead(email: string): Promise<LeadEnrichmentResponse>
         }
       }
 
-      throw new Error(`API returned status ${response.status}: ${response.statusText}`)
+      // For any other error status, fall back to simulation instead of throwing
+      console.error(`AnyMail Finder API: Unexpected status ${response.status}: ${response.statusText}`)
+      return await simulateEnrichment(email)
     }
 
-    const apiData = await response.json()
+    // Safely parse JSON response
+    let apiData
+    try {
+      apiData = await response.json()
+    } catch (parseError) {
+      console.error('AnyMail Finder API: Failed to parse JSON response', parseError)
+      // If we can't parse the response, fall back to simulation
+      return await simulateEnrichment(email)
+    }
 
     // Map AnyMail Finder API response to our enrichment data structure
     // Note: The actual API response structure may vary based on AnyMail Finder's documentation
