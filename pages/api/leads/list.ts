@@ -5,6 +5,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -50,6 +55,19 @@ export default async function handler(
     })
   } catch (error) {
     console.error('Error fetching leads:', error)
+    
+    // Check if it's a database connection error
+    if (error instanceof Error) {
+      if (error.message.includes('Can\'t reach database server') || 
+          error.message.includes('P1001') ||
+          error.message.includes('connection')) {
+        return res.status(500).json({
+          error: 'Database connection error',
+          message: 'Unable to connect to the database. Please check your DATABASE_URL environment variable.',
+        })
+      }
+    }
+    
     return res.status(500).json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',
