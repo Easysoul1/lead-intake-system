@@ -13,7 +13,7 @@ A full-stack TypeScript application built with Next.js, Node.js, and Prisma that
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Easysoul1/lead-intake-system.git
    cd Technical-Test
    ```
 
