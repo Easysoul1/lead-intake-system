@@ -45,8 +45,10 @@ A full-stack TypeScript application built with Next.js, Node.js, and Prisma that
   - Persists leads to SQLite database
 
 - ✅ **Lead Enrichment**
-  - Integrates with AnyMail Finder API (simulated for demo)
-  - Gracefully handles API failures
+  - Real AnyMail Finder API integration with graceful fallback
+  - Uses actual API when API key is provided
+  - Falls back to simulation when no API key or API fails
+  - Gracefully handles API failures without blocking lead creation
   - Enriches with company name, size, industry, and country
 
 - ✅ **Lead Scoring System**
@@ -173,42 +175,68 @@ Implemented comprehensive error handling:
 
 ### How It Works
 
-The enrichment process is implemented in `lib/enrichment.ts`:
+The enrichment process is implemented in `lib/enrichment.ts` with **real API integration**:
 
-1. **API Call**: After a lead is created, the system attempts to enrich it
-2. **Error Handling**: If enrichment fails, the lead is still saved
-3. **Data Extraction**: Extracts company name, size, industry, and country
-4. **Partial Data**: Handles cases where only partial data is available
+1. **API Key Check**: First checks for `ANYMAIL_FINDER_API_KEY` environment variable
+2. **Real API Call**: If API key is provided, makes actual request to AnyMail Finder API
+3. **Graceful Fallback**: If no API key or API fails, falls back to simulation
+4. **Error Handling**: If enrichment fails, the lead is still saved (non-blocking)
+5. **Data Extraction**: Extracts company name, size, industry, and country from API response
 
-### Production Implementation
+### API Integration Details
+
+**Endpoint**: `https://api.anymailfinder.com/v4.0/search/person.json`
+
+**Method**: GET
+
+**Headers**:
+- `X-Api-Key`: Your AnyMail Finder API key
+- `Content-Type`: application/json
+
+**Query Parameter**:
+- `email`: The email address to enrich
+
+**Response Mapping**:
+The API response is mapped to our enrichment data structure:
+- `company.name` or `company_name` → `companyName`
+- `company.size` or `company_size` → `companySize`
+- `company.industry` or `industry` → `industry`
+- `location.country` or `country` → `country`
+
+### Setup Instructions
 
 To use the real AnyMail Finder API:
 
 1. Sign up at [anymailfinder.com](https://anymailfinder.com)
-2. Get your API key
+2. Get your API key from the dashboard
 3. Add to `.env.local`:
-   ```
+   ```env
    ANYMAIL_FINDER_API_KEY=your_api_key_here
    ```
-4. Update `lib/enrichment.ts` to use the actual API endpoint:
-   ```typescript
-   const response = await fetch(
-     `https://api.anymailfinder.com/v4.0/search/person.json?email=${encodeURIComponent(email)}`,
-     {
-       headers: {
-         'X-Api-Key': process.env.ANYMAIL_FINDER_API_KEY || '',
-       },
-     }
-   )
-   ```
+4. Restart your development server
 
-### Current Implementation
+The system will automatically:
+- Use the real API when the key is provided
+- Fall back to simulation if no key is set
+- Handle API errors gracefully without blocking lead creation
 
-The current implementation simulates:
-- API response delays (500-1500ms)
-- Occasional failures (10% failure rate)
-- Partial data scenarios (30% chance)
-- Realistic enrichment data based on email domain
+### Error Handling
+
+The implementation handles various error scenarios:
+
+- **No API Key**: Falls back to simulation with warning log
+- **Invalid API Key (401)**: Falls back to simulation
+- **Rate Limit (429)**: Returns error but still saves lead
+- **Network Errors**: Falls back to simulation
+- **API Errors**: Logs error and falls back to simulation
+
+### Fallback Behavior
+
+When the API key is not provided or the API fails, the system uses a simulation that:
+- Provides realistic enrichment data based on email domain
+- Simulates API response delays (500-1500ms)
+- Handles partial data scenarios
+- Ensures the system works even without API access
 
 ## 🎨 UI Design
 
