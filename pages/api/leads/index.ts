@@ -17,6 +17,15 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Check if DATABASE_URL is configured
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL environment variable is not set')
+    return res.status(500).json({
+      error: 'Server configuration error',
+      message: 'DATABASE_URL environment variable is not configured. Please set it in Vercel environment variables.',
+    })
+  }
+
   try {
     // Validate request body
     const validationResult = leadSubmissionSchema.safeParse(req.body)
@@ -43,8 +52,21 @@ export default async function handler(
     }
 
     // Attempt enrichment (non-blocking - lead will be saved even if enrichment fails)
-    const enrichmentResult = await enrichLead(email)
-    const enrichmentData = enrichmentResult.data
+    // Wrap in try-catch to ensure it never crashes the route
+    let enrichmentResult
+    let enrichmentData
+    try {
+      enrichmentResult = await enrichLead(email)
+      enrichmentData = enrichmentResult.data
+    } catch (enrichmentError) {
+      // Log but don't fail - enrichment is optional
+      console.error('Enrichment failed (non-blocking):', enrichmentError)
+      enrichmentResult = {
+        success: false,
+        error: enrichmentError instanceof Error ? enrichmentError.message : 'Enrichment failed',
+      }
+      enrichmentData = undefined
+    }
 
     // Calculate lead score
     const score = calculateLeadScore(!!website, enrichmentData)
@@ -91,12 +113,24 @@ export default async function handler(
     
     // Check if it's a database connection error
     if (error instanceof Error) {
+      // Prisma error codes
       if (error.message.includes('Can\'t reach database server') || 
           error.message.includes('P1001') ||
-          error.message.includes('connection')) {
+          error.message.includes('P1000') ||
+          error.message.includes('connection') ||
+          error.message.includes('ECONNREFUSED') ||
+          error.message.includes('ENOTFOUND')) {
         return res.status(500).json({
           error: 'Database connection error',
-          message: 'Unable to connect to the database. Please check your DATABASE_URL environment variable.',
+          message: 'Unable to connect to the database. Please check your DATABASE_URL environment variable in Vercel settings.',
+        })
+      }
+      
+      // Prisma schema/migration errors
+      if (error.message.includes('P2021') || error.message.includes('does not exist')) {
+        return res.status(500).json({
+          error: 'Database schema error',
+          message: 'Database tables do not exist. Please run migrations: npx prisma migrate deploy',
         })
       }
     }
