@@ -7,9 +7,11 @@ import { useRouter } from 'next/router'
 export default function Home() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [enrichmentWarning, setEnrichmentWarning] = useState<string | null>(null)
 
   const handleSubmit = async (data: LeadSubmission) => {
     setError(null)
+    setEnrichmentWarning(null)
     
     try {
       const response = await fetch('/api/leads', {
@@ -27,6 +29,11 @@ export default function Home() {
           throw new Error('A lead with this email already exists')
         }
         throw new Error(result.error || 'Failed to submit lead')
+      }
+
+      // Check for enrichment errors/warnings even if lead was saved successfully
+      if (result.enrichment && !result.enrichment.success && result.enrichment.error) {
+        setEnrichmentWarning(result.enrichment.error)
       }
 
       // Success - form component will handle the success state
@@ -48,6 +55,12 @@ export default function Home() {
         </p>
       </div>
 
+      {enrichmentWarning && (
+        <div className="max-w-2xl mx-auto mb-4 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
+          <p className="text-yellow-800 font-medium">⚠️ {enrichmentWarning}</p>
+        </div>
+      )}
+      
       <LeadForm onSubmit={handleSubmit} />
     </Layout>
   )
