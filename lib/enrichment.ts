@@ -44,6 +44,34 @@ export async function enrichLead(email: string): Promise<LeadEnrichmentResponse>
         return await simulateEnrichment(email)
       }
       
+      if (response.status === 402) {
+        // Payment Required / Insufficient Credits
+        console.error('AnyMail Finder API: Insufficient credits or payment required')
+        return {
+          success: false,
+          error: 'Insufficient credits. Please add credits to your AnyMail Finder account. Lead saved without enrichment.',
+        }
+      }
+      
+      if (response.status === 403) {
+        // Forbidden - could be quota/credits exhausted
+        console.error('AnyMail Finder API: Access forbidden (possibly insufficient credits)')
+        // Try to parse error message from response
+        let errorMessage = 'API access forbidden. Lead saved without enrichment.'
+        try {
+          const errorData = await response.json()
+          if (errorData.message || errorData.error) {
+            errorMessage = `${errorData.message || errorData.error}. Lead saved without enrichment.`
+          }
+        } catch {
+          // If response is not JSON, use default message
+        }
+        return {
+          success: false,
+          error: errorMessage,
+        }
+      }
+      
       if (response.status === 429) {
         console.error('AnyMail Finder API: Rate limit exceeded')
         return {
